@@ -2,7 +2,8 @@ import os
 import csv
 
 # 設定訓練集與測試集路徑
-base_dir = 'AI_MSC_密度照片'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.join(script_dir, 'AI_MSC_密度照片')
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test')
 

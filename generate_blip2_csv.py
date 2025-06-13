@@ -2,7 +2,10 @@ import os
 import csv
 
 # 設定訓練集與測試集路徑
-base_dir = 'AI_MSC_密度照片'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.join(script_dir, 'AI_MSC_密度照片')
+data_dir = os.path.join(script_dir, 'data')
+os.makedirs(data_dir, exist_ok=True)
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test')
 
@@ -16,7 +19,7 @@ desc_map = {interval: f"細胞生長比例為{interval.replace('_','')}%" for in
 
 # 產生image-text配對csv
 for split, split_dir in [('train', train_dir), ('test', test_dir)]:
-    csv_path = os.path.join(base_dir, f'{split}_blip2.csv')
+    csv_path = os.path.join(data_dir, f'{split}_blip2.csv')
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['image_path', 'text'])
@@ -28,4 +31,4 @@ for split, split_dir in [('train', train_dir), ('test', test_dir)]:
                 if img.lower().endswith('.tif'):
                     img_path = os.path.join(folder, img)
                     writer.writerow([img_path, desc_map[interval]])
-print('train_blip2.csv 與 test_blip2.csv 已建立')
+print('train_blip2.csv 與 test_blip2.csv 已建立於 data 資料夾')

@@ -5,8 +5,9 @@ import random
 # 設定隨機種子以確保可重現性
 random.seed(42)
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
 # 原始資料夾路徑
-base_dir = 'AI_MSC_密度照片'
+base_dir = os.path.join(script_dir, 'AI_MSC_密度照片')
 # 訓練集與測試集資料夾名稱
 train_dir = os.path.join(base_dir, 'train')
 test_dir = os.path.join(base_dir, 'test')

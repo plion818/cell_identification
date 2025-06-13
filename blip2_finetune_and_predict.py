@@ -22,9 +22,10 @@ class Blip2ImageTextDataset(Dataset):
         return item
 
 # 2. 設定路徑
-base_dir = 'AI_MSC_密度照片'
-train_csv = os.path.join(base_dir, 'train_blip2.csv')
-test_csv = os.path.join(base_dir, 'test_blip2.csv')
+script_dir = os.path.dirname(os.path.abspath(__file__))
+data_dir = os.path.join(script_dir, 'data')
+train_csv = os.path.join(data_dir, 'train_blip2.csv')
+test_csv = os.path.join(data_dir, 'test_blip2.csv')
 
 # 3. 載入BLIP-2
 model_name = "Salesforce/blip2-opt-2.7b"
@@ -79,5 +80,5 @@ def match_interval(text):
             return interval
     return '未知'
 result_df['predicted_interval'] = result_df['predicted_text'].apply(match_interval)
-result_df.to_csv(os.path.join(base_dir, 'test_blip2_predictions.csv'), index=False)
+result_df.to_csv(os.path.join(script_dir, 'test_blip2_predictions.csv'), index=False)
 print('微調與推論完成，結果已輸出到 test_blip2_predictions.csv')
