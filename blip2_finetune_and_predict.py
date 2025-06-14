@@ -5,6 +5,9 @@ from torch.utils.data import Dataset
 from transformers import AutoProcessor, AutoModelForVisualQuestionAnswering, TrainingArguments, Trainer
 import torch
 
+# 開啟 TF32 加速，提升 GPU 訓練/推論效能
+torch.backends.cuda.matmul.allow_tf32 = True
+
 # 1. 自訂Dataset
 class Blip2ImageTextDataset(Dataset):
     def __init__(self, csv_file, processor):
@@ -33,8 +36,8 @@ data_dir = os.path.join(script_dir, 'data')
 train_csv = os.path.join(data_dir, 'train_blip2.csv')
 test_csv = os.path.join(data_dir, 'test_blip2.csv')
 
-# 3. 載入BLIP-2 (改用 blip2-opt-2.7b 模型)
-model_name = "Salesforce/blip2-opt-2.7b"
+# 3. 載入BLIP-2 (改用 blip2-flan-t5-xl 模型)
+model_name = "Salesforce/blip2-flan-t5-xl"
 processor = AutoProcessor.from_pretrained(model_name)
 model = AutoModelForVisualQuestionAnswering.from_pretrained(model_name)
 
@@ -42,30 +45,41 @@ model = AutoModelForVisualQuestionAnswering.from_pretrained(model_name)
 train_dataset = Blip2ImageTextDataset(train_csv, processor)
 test_dataset = Blip2ImageTextDataset(test_csv, processor)
 
-# 5. 訓練參數
-training_args = TrainingArguments(
-    output_dir="blip2_cell_growth_vlm",
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
-    num_train_epochs=3,
-    # evaluation_strategy="epoch",
-    # save_strategy="epoch",
-    logging_steps=10,
-    learning_rate=5e-5,
-    fp16=True,
-    report_to="none"
-)
 
-# 6. Trainer
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-)
+# 5. 手動訓練 loop
+from torch.utils.data import DataLoader
+from torch.optim import AdamW
+from tqdm import tqdm
 
-# 7. 微調
-trainer.train()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+num_epochs = 3
+batch_size = 1
+accum_steps = 4  # gradient_accumulation_steps
+lr = 5e-5
+
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+optimizer = AdamW(model.parameters(), lr=lr)
+model.train()
+optimizer.zero_grad()
+
+for epoch in range(num_epochs):
+    print(f"Epoch {epoch+1}/{num_epochs}")
+    running_loss = 0.0
+    for step, batch in enumerate(tqdm(train_loader)):
+        for k in batch:
+            batch[k] = batch[k].to(device)
+        outputs = model(**batch)
+        loss = outputs.loss
+        loss = loss / accum_steps
+        loss.backward()
+        running_loss += loss.item()
+        if (step + 1) % accum_steps == 0 or (step + 1) == len(train_loader):
+            optimizer.step()
+            optimizer.zero_grad()
+    print(f"  Loss: {running_loss/len(train_loader):.4f}")
+
 
 # 8. 推論
 result_df = pd.read_csv(test_csv)
