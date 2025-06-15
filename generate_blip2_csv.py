@@ -30,5 +30,10 @@ for split, split_dir in [('train', train_dir), ('test', test_dir)]:
             for img in os.listdir(folder):
                 if img.lower().endswith('.tif'):
                     img_path = os.path.join(folder, img)
-                    writer.writerow([img_path, desc_map[interval]])
+                    if split == 'train':
+                        # 訓練集：圖片對應正確描述
+                        writer.writerow([img_path, desc_map[interval]])
+                    else:
+                        # 測試集：圖片對應統一詢問
+                        writer.writerow([img_path, '判斷圖片細胞生長比例?'])
 print('train_blip2.csv 與 test_blip2.csv 已建立於 data 資料夾')

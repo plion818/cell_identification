@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
-from transformers import AutoProcessor, AutoModelForVisualQuestionAnswering, TrainingArguments, Trainer
+from transformers import AutoProcessor, AutoModelForImageTextToText, TrainingArguments, Trainer
 import torch
 
 # 1. 自訂Dataset
@@ -33,10 +33,10 @@ data_dir = os.path.join(script_dir, 'data')
 train_csv = os.path.join(data_dir, 'train_blip2.csv')
 test_csv = os.path.join(data_dir, 'test_blip2.csv')
 
-# 3. 載入BLIP-2 (改用 blip2-opt-2.7b 模型)
-model_name = "Salesforce/blip2-opt-2.7b"
-processor = AutoProcessor.from_pretrained(model_name)
-model = AutoModelForVisualQuestionAnswering.from_pretrained(model_name)
+# 3. 載入 BLIP-1 影像描述模型（Hugging Face 官方推薦用法）
+model_name = "Salesforce/blip-image-captioning-base"
+processor = AutoProcessor.from_pretrained(model_name, use_fast=True)
+model = AutoModelForImageTextToText.from_pretrained(model_name)
 
 # 4. 準備資料集
 train_dataset = Blip2ImageTextDataset(train_csv, processor)
@@ -85,11 +85,19 @@ result_df['predicted_text'] = pred_texts
 # 9. 根據描述判斷預測區間
 intervals = [d.replace('_','') for d in os.listdir(os.path.join(base_dir, 'train')) if os.path.isdir(os.path.join(base_dir, 'train', d))]
 def match_interval(text):
+    import re
+    # 將描述與區間都去除空白再比對，並嘗試用正則表達式彈性比對
+    text_nospace = text.replace(' ', '')
     for interval in intervals:
-        if interval in text:
+        interval_nospace = interval.replace(' ', '')
+        # 直接比對去除空白後的字串
+        if interval_nospace in text_nospace:
+            return interval
+        # 嘗試用正則表達式比對（允許數字間有空格或符號）
+        pattern = re.sub(r'(\d+)-(\d+)', r'\\s*\\1\\s*[-~—－–_]?\\s*\\2\\s*', interval)
+        if re.search(pattern, text):
             return interval
     return '未知'
 result_df['predicted_interval'] = result_df['predicted_text'].apply(match_interval)
 result_df.to_csv(os.path.join(script_dir, 'test_blip2_predictions.csv'), index=False)
 print('微調與推論完成，結果已輸出到 test_blip2_predictions.csv')
-逐行詳細說明我的代碼
