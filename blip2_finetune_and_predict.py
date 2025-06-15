@@ -42,6 +42,16 @@ model = AutoModelForImageTextToText.from_pretrained(model_name)
 train_dataset = Blip2ImageTextDataset(train_csv, processor)
 test_dataset = Blip2ImageTextDataset(test_csv, processor)
 
+"""
+# epoch 數（num_train_epochs）
+# 定義：全訓練資料集被模型完整學習幾次。
+
+# 小型資料集：通常 3~10 次即可，避免過度擬合。
+# 大型資料集：可設大一點，但要觀察驗證損失，避免過度訓練。
+
+# logging_steps（每幾個 batch 記錄一次損失）
+"""
+
 # 5. 訓練參數
 training_args = TrainingArguments(
     output_dir="blip2_cell_growth_vlm",
@@ -86,18 +96,37 @@ result_df['predicted_text'] = pred_texts
 intervals = [d.replace('_','') for d in os.listdir(os.path.join(base_dir, 'train')) if os.path.isdir(os.path.join(base_dir, 'train', d))]
 def match_interval(text):
     import re
-    # 將描述與區間都去除空白再比對，並嘗試用正則表達式彈性比對
     text_nospace = text.replace(' ', '')
     for interval in intervals:
         interval_nospace = interval.replace(' ', '')
-        # 直接比對去除空白後的字串
         if interval_nospace in text_nospace:
             return interval
-        # 嘗試用正則表達式比對（允許數字間有空格或符號）
-        pattern = re.sub(r'(\d+)-(\d+)', r'\\s*\\1\\s*[-~—－–_]?\\s*\\2\\s*', interval)
-        if re.search(pattern, text):
-            return interval
+        # 允許描述中數字間有任意空格或符號
+        # 例如 interval = '60-80'，pattern = r'6\s*0\s*[-~—－–_]?\s*8\s*0'
+        m = re.match(r'^(\d+)-(\d+)$', interval)
+        if m:
+            n1, n2 = m.group(1), m.group(2)
+            pattern = rf'{n1}\s*[-~—－–_]?\s*{n2}'
+            if re.search(pattern, text):
+                return interval
     return '未知'
+
+# 10. 計算準確率（以 test_blip2.csv 的正確區間為標準）
+def get_true_interval_from_path(img_path):
+    # 依據圖片路徑中的資料夾名稱判斷正確區間
+    # e.g. .../test/60-80_/1.tif -> 60-80
+    parts = os.path.normpath(img_path).split(os.sep)
+    for p in parts:
+        if '-' in p and p.replace('_','').replace('-','').isdigit():
+            return p.replace('_','')
+    return '未知'
+
+# 先建立 predicted_interval 欄位，再計算準確率
 result_df['predicted_interval'] = result_df['predicted_text'].apply(match_interval)
+result_df['true_interval'] = result_df['image_path'].apply(get_true_interval_from_path)
+correct = (result_df['predicted_interval'] == result_df['true_interval']) & (result_df['true_interval'] != '未知')
+accuracy = correct.sum() / (result_df['true_interval'] != '未知').sum() if (result_df['true_interval'] != '未知').sum() > 0 else 0
+
 result_df.to_csv(os.path.join(script_dir, 'test_blip2_predictions.csv'), index=False)
 print('微調與推論完成，結果已輸出到 test_blip2_predictions.csv')
+print(f'模型在測試集的區間分類準確率：{accuracy:.2%}')
